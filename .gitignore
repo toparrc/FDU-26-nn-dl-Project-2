@@ -14,7 +14,11 @@ codes/**/dataset/
 
 # Generated training outputs
 codes/**/checkpoints/
-codes/**/results/
+codes/**/results/**
+!codes/**/results/**/
+!codes/**/results/**/*.csv
+!codes/**/results/**/*.pdf
+!codes/**/results/**/*.png
 codes/**/reports/models/
 
 # Model weights

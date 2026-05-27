@@ -17,7 +17,7 @@ from training_framework import DEVICE, set_random_seeds, train
 
 NUM_WORKERS = 4
 BATCH_SIZE = 128
-EPOCHS = 20
+EPOCHS = 50
 LR = 1e-3
 SEED = 2020
 MODEL_CONFIGS = [("vgg_a", VGG_A, "VGG-A without BN"), ("vgg_a_bn", VGG_A_BatchNorm, "VGG-A with BN")]

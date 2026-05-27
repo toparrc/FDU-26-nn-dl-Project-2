@@ -7,22 +7,18 @@ import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-from torch import nn
-
-from data.loaders import get_cifar_loader
-from models.vgg import VGG_A, VGG_A_BatchNorm
-from training_framework import DEVICE, build_min_max_curves, set_random_seeds, train
 
 
 # ## Constants (parameters) initialization
 NUM_WORKERS = 4
 BATCH_SIZE = 128
-EPOCHS = 20
+EPOCHS = 50
 SEED = 2020
+SMOOTH_WINDOW = 50
+PLOT_STRIDE = 10
 # Select a list of learning rates to represent different step sizes.
 LEARNING_RATES = [1e-3, 2e-3, 1e-4, 5e-4]
-MODEL_CONFIGS = [("vgg_a", VGG_A), ("vgg_a_bn", VGG_A_BatchNorm)]
+MODEL_NAMES = ["vgg_a", "vgg_a_bn"]
 RESULTS_PATH = Path(__file__).resolve().parent / "results" / "bn_loss_landscape"
 
 
@@ -34,6 +30,10 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--learning-rates", type=float, nargs="+", default=LEARNING_RATES)
     parser.add_argument("--results-dir", type=Path, default=RESULTS_PATH)
+    parser.add_argument("--plot-only", action="store_true", help="Replot figures from saved curve files without training.")
+    parser.add_argument("--smooth-window", type=int, default=SMOOTH_WINDOW, help="Moving-average window for plotted curves. Use 1 to disable smoothing.")
+    parser.add_argument("--plot-stride", type=int, default=PLOT_STRIDE, help="Plot every Nth point after smoothing. Use 1 to disable downsampling.")
+    parser.add_argument("--output-suffix", type=str, default="", help="Suffix appended to output figure names before the extension.")
     return parser.parse_args()
 
 
@@ -46,20 +46,44 @@ def print_loader_sample(train_loader):
         break
 
 
-def plot_loss_landscape(min_curve, max_curve, output_path):
-    # Plot the final loss landscape. The filled area shows loss variation across step sizes.
+def moving_average(values, window):
+    values = np.asarray(values, dtype=float)
+    if window <= 1:
+        return values
+    left = window // 2
+    right = window - 1 - left
+    padded = np.pad(values, (left, right), mode="edge")
+    kernel = np.ones(window) / window
+    return np.convolve(padded, kernel, mode="valid")
+
+
+def plot_min_max_curves(min_curve, max_curve, output_path, title, ylabel, smooth_window, plot_stride):
+    # Plot min/max envelopes. The filled area shows variation across step sizes.
     fig, ax = plt.subplots(figsize=(10, 5))
-    labels = {"vgg_a": "VGG-A without BN", "vgg_a_bn": "VGG-A with BN"}
-    colors = {"vgg_a": "tab:orange", "vgg_a_bn": "tab:blue"}
+    labels = {"vgg_a": "Standard VGG", "vgg_a_bn": "Standard VGG + BatchNorm"}
+    colors = {"vgg_a": "#55a868", "vgg_a_bn": "#c44e52"}
     for model_name in labels:
-        steps = np.arange(len(min_curve[model_name]))
-        ax.plot(steps, min_curve[model_name], color=colors[model_name], linewidth=1.2)
-        ax.plot(steps, max_curve[model_name], color=colors[model_name], linewidth=1.2)
+        smooth_min = moving_average(min_curve[model_name], smooth_window)
+        smooth_max = moving_average(max_curve[model_name], smooth_window)
+        stride = max(1, plot_stride)
+        steps = np.arange(len(smooth_min))[::stride]
+        smooth_min = smooth_min[::stride]
+        smooth_max = smooth_max[::stride]
         # Fill the area between max_curve and min_curve for this model.
-        ax.fill_between(steps, min_curve[model_name], max_curve[model_name], color=colors[model_name], alpha=0.25, label=labels[model_name])
-    ax.set_title("Loss landscape comparison")
+        ax.fill_between(
+            steps,
+            smooth_min,
+            smooth_max,
+            facecolor=colors[model_name],
+            alpha=0.35,
+            edgecolor=colors[model_name],
+            linewidth=0.4,
+            label=labels[model_name],
+            zorder=1,
+        )
+    ax.set_title(title)
     ax.set_xlabel("Training step")
-    ax.set_ylabel("Training loss")
+    ax.set_ylabel(ylabel)
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
@@ -67,8 +91,56 @@ def plot_loss_landscape(min_curve, max_curve, output_path):
     plt.close(fig)
 
 
+def load_curve_pair(results_dir, min_suffix, max_suffix):
+    min_curve = {}
+    max_curve = {}
+    for model_name in MODEL_NAMES:
+        min_curve[model_name] = np.loadtxt(results_dir / f"{model_name}_{min_suffix}.txt")
+        max_curve[model_name] = np.loadtxt(results_dir / f"{model_name}_{max_suffix}.txt")
+    return min_curve, max_curve
+
+
+def figure_path(results_dir, stem, suffix):
+    return results_dir / f"{stem}{suffix}.png"
+
+
+def plot_saved_curves(results_dir, smooth_window, plot_stride, output_suffix):
+    min_curve, max_curve = load_curve_pair(results_dir, "min_curve", "max_curve")
+    grad_min_curve, grad_max_curve = load_curve_pair(results_dir, "grad_norm_min_curve", "grad_norm_max_curve")
+    plot_min_max_curves(
+        min_curve,
+        max_curve,
+        figure_path(results_dir, "loss_landscape_comparison", output_suffix),
+        "Loss landscape comparison",
+        "Training loss",
+        smooth_window,
+        plot_stride,
+    )
+    plot_min_max_curves(
+        grad_min_curve,
+        grad_max_curve,
+        figure_path(results_dir, "grad_norm_landscape_comparison", output_suffix),
+        "Gradient norm landscape comparison",
+        "Classifier gradient norm",
+        smooth_window,
+        plot_stride,
+    )
+
+
 def main():
     args = parse_args()
+    if args.plot_only:
+        plot_saved_curves(args.results_dir, args.smooth_window, args.plot_stride, args.output_suffix)
+        return
+
+    import torch
+    from torch import nn
+
+    from data.loaders import get_cifar_loader
+    from models.vgg import VGG_A, VGG_A_BatchNorm
+    from training_framework import DEVICE, build_min_max_curves, set_random_seeds, train
+
+    model_configs = [("vgg_a", VGG_A), ("vgg_a_bn", VGG_A_BatchNorm)]
     models_path = args.results_dir / "models"
     os.makedirs(args.results_dir, exist_ok=True)
     os.makedirs(models_path, exist_ok=True)
@@ -80,7 +152,7 @@ def main():
     experiment_results = {}
 
     # Train VGG-A and VGG-A with BN under each learning rate, saving every batch loss.
-    for model_name, model_cls in MODEL_CONFIGS:
+    for model_name, model_cls in model_configs:
         experiment_results[model_name] = []
         for lr in args.learning_rates:
             set_random_seeds(args.seed, DEVICE)
@@ -106,7 +178,14 @@ def main():
         np.savetxt(args.results_dir / f"{model_name}_min_curve.txt", min_curve[model_name], fmt="%.8f")
         np.savetxt(args.results_dir / f"{model_name}_max_curve.txt", max_curve[model_name], fmt="%.8f")
 
-    plot_loss_landscape(min_curve, max_curve, args.results_dir / "loss_landscape_comparison.png")
+    grad_min_curve = {}
+    grad_max_curve = {}
+    for model_name, runs in experiment_results.items():
+        grad_min_curve[model_name], grad_max_curve[model_name] = build_min_max_curves([run["grads"] for run in runs])
+        np.savetxt(args.results_dir / f"{model_name}_grad_norm_min_curve.txt", grad_min_curve[model_name], fmt="%.8f")
+        np.savetxt(args.results_dir / f"{model_name}_grad_norm_max_curve.txt", grad_max_curve[model_name], fmt="%.8f")
+
+    plot_saved_curves(args.results_dir, args.smooth_window, args.plot_stride, args.output_suffix)
 
 
 if __name__ == "__main__":
