@@ -1,0 +1,19 @@
+{
+  "model": "cnn3",
+  "output_name": "depth/cnn3",
+  "activation": "relu",
+  "weight_decay": 0.0005,
+  "trainable_parameters": 3249994,
+  "epochs_completed": 50,
+  "best_epoch": 49,
+  "best_val_acc": 0.9178,
+  "test_loss": 0.38660791721343996,
+  "test_acc": 0.9066,
+  "total_train_time_sec": 605.1569867909993,
+  "avg_epoch_time_sec": 12.103139735819987,
+  "test_time_sec": 3.1562410469996394,
+  "best_checkpoint": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/checkpoints/task1_comparisons/depth/cnn3/best.pth",
+  "history_csv": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/results/task1_comparisons/depth/cnn3/history.csv",
+  "validation_curves": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/results/task1_comparisons/depth/cnn3/validation_curves.png",
+  "test_confusion_matrix": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/results/task1_comparisons/depth/cnn3/test_confusion_matrix.png"
+}

@@ -1,0 +1,19 @@
+{
+  "model": "cnn4",
+  "output_name": "regularization/wd_1e-3",
+  "activation": "relu",
+  "weight_decay": 0.001,
+  "trainable_parameters": 5743434,
+  "epochs_completed": 50,
+  "best_epoch": 50,
+  "best_val_acc": 0.9214,
+  "test_loss": 0.45716677765846253,
+  "test_acc": 0.915,
+  "total_train_time_sec": 696.1562990289999,
+  "avg_epoch_time_sec": 13.923125980579998,
+  "test_time_sec": 2.9799864960000377,
+  "best_checkpoint": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/checkpoints/task1_comparisons/regularization/wd_1e-3/best.pth",
+  "history_csv": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/results/task1_comparisons/regularization/wd_1e-3/history.csv",
+  "validation_curves": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/results/task1_comparisons/regularization/wd_1e-3/validation_curves.png",
+  "test_confusion_matrix": "/home/toparrc1/coursework/neural_network-course/Project2-2026/PJ2/codes/CIFAR10_CNN/results/task1_comparisons/regularization/wd_1e-3/test_confusion_matrix.png"
+}
