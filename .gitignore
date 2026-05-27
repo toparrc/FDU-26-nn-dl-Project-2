@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# macOS archive metadata
+.DS_Store
+__MACOSX/
+
+# Datasets and downloaded archives
+codes/**/data/cifar-10-batches-py/
+codes/**/data/cifar-10-python.tar.gz
+codes/**/data/*.partial
+codes/**/dataset/
+
+# Generated training outputs
+codes/**/checkpoints/
+codes/**/results/
+codes/**/reports/models/
+
+# Model weights
+*.pth
+*.pt
