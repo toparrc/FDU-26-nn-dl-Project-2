@@ -107,6 +107,16 @@ def figure_path(results_dir, stem, suffix):
 def plot_saved_curves(results_dir, smooth_window, plot_stride, output_suffix):
     min_curve, max_curve = load_curve_pair(results_dir, "min_curve", "max_curve")
     grad_min_curve, grad_max_curve = load_curve_pair(results_dir, "grad_norm_min_curve", "grad_norm_max_curve")
+    grad_change_paths = [
+        results_dir / f"{model_name}_grad_change_{kind}_curve.txt"
+        for model_name in MODEL_NAMES
+        for kind in ("min", "max")
+    ]
+    grad_smoothness_paths = [
+        results_dir / f"{model_name}_grad_smoothness_{kind}_curve.txt"
+        for model_name in MODEL_NAMES
+        for kind in ("min", "max")
+    ]
     plot_min_max_curves(
         min_curve,
         max_curve,
@@ -116,12 +126,38 @@ def plot_saved_curves(results_dir, smooth_window, plot_stride, output_suffix):
         smooth_window,
         plot_stride,
     )
+    if all(path.exists() for path in grad_change_paths):
+        grad_change_min_curve, grad_change_max_curve = load_curve_pair(results_dir, "grad_change_min_curve", "grad_change_max_curve")
+        plot_min_max_curves(
+            grad_change_min_curve,
+            grad_change_max_curve,
+            figure_path(results_dir, "grad_change_landscape_comparison", output_suffix),
+            "Gradient change comparison",
+            "Full-gradient change norm",
+            smooth_window,
+            plot_stride,
+        )
+    else:
+        print("Skipping gradient-change plot: saved full-gradient change curves were not found.")
+    if all(path.exists() for path in grad_smoothness_paths):
+        grad_smoothness_min_curve, grad_smoothness_max_curve = load_curve_pair(results_dir, "grad_smoothness_min_curve", "grad_smoothness_max_curve")
+        plot_min_max_curves(
+            grad_smoothness_min_curve,
+            grad_smoothness_max_curve,
+            figure_path(results_dir, "grad_smoothness_landscape_comparison", output_suffix),
+            "Gradient smoothness comparison",
+            "||delta gradient|| / ||delta parameters||",
+            smooth_window,
+            plot_stride,
+        )
+    else:
+        print("Skipping gradient-smoothness plot: saved full-gradient smoothness curves were not found.")
     plot_min_max_curves(
         grad_min_curve,
         grad_max_curve,
         figure_path(results_dir, "grad_norm_landscape_comparison", output_suffix),
-        "Gradient norm landscape comparison",
-        "Classifier gradient norm",
+        "Full-gradient norm comparison",
+        "Full-gradient norm",
         smooth_window,
         plot_stride,
     )
@@ -164,9 +200,19 @@ def main():
                 test_loader=test_loader, epochs_n=args.epochs,
                 best_model_path=str(models_path / f"{run_name}_best.pth")
             )
-            experiment_results[model_name].append({"lr": lr, "losses": losses, "grads": grads, "history": history, "test_metrics": test_metrics})
+            experiment_results[model_name].append({
+                "lr": lr,
+                "losses": losses,
+                "grads": grads,
+                "grad_changes": test_metrics["grad_changes"],
+                "grad_smoothness": test_metrics["grad_smoothness"],
+                "history": history,
+                "test_metrics": test_metrics,
+            })
             np.savetxt(args.results_dir / f"{run_name}_loss.txt", np.array(losses), fmt="%.8f")
             np.savetxt(args.results_dir / f"{run_name}_grads.txt", np.array(grads), fmt="%.8f")
+            np.savetxt(args.results_dir / f"{run_name}_grad_changes.txt", np.array(test_metrics["grad_changes"]), fmt="%.8f")
+            np.savetxt(args.results_dir / f"{run_name}_grad_smoothness.txt", np.array(test_metrics["grad_smoothness"]), fmt="%.8f")
 
     # Maintain two lists: max_curve and min_curve. At the same training step,
     # select the maximum and minimum loss values among all learning-rate runs.
@@ -184,6 +230,20 @@ def main():
         grad_min_curve[model_name], grad_max_curve[model_name] = build_min_max_curves([run["grads"] for run in runs])
         np.savetxt(args.results_dir / f"{model_name}_grad_norm_min_curve.txt", grad_min_curve[model_name], fmt="%.8f")
         np.savetxt(args.results_dir / f"{model_name}_grad_norm_max_curve.txt", grad_max_curve[model_name], fmt="%.8f")
+
+    grad_change_min_curve = {}
+    grad_change_max_curve = {}
+    for model_name, runs in experiment_results.items():
+        grad_change_min_curve[model_name], grad_change_max_curve[model_name] = build_min_max_curves([run["grad_changes"] for run in runs])
+        np.savetxt(args.results_dir / f"{model_name}_grad_change_min_curve.txt", grad_change_min_curve[model_name], fmt="%.8f")
+        np.savetxt(args.results_dir / f"{model_name}_grad_change_max_curve.txt", grad_change_max_curve[model_name], fmt="%.8f")
+
+    grad_smoothness_min_curve = {}
+    grad_smoothness_max_curve = {}
+    for model_name, runs in experiment_results.items():
+        grad_smoothness_min_curve[model_name], grad_smoothness_max_curve[model_name] = build_min_max_curves([run["grad_smoothness"] for run in runs])
+        np.savetxt(args.results_dir / f"{model_name}_grad_smoothness_min_curve.txt", grad_smoothness_min_curve[model_name], fmt="%.8f")
+        np.savetxt(args.results_dir / f"{model_name}_grad_smoothness_max_curve.txt", grad_smoothness_max_curve[model_name], fmt="%.8f")
 
     plot_saved_curves(args.results_dir, args.smooth_window, args.plot_stride, args.output_suffix)
 
